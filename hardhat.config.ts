@@ -1,3 +1,5 @@
+import "dotenv/config";
+
 import type { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox-viem";
 import "@nomicfoundation/hardhat-verify";
@@ -7,7 +9,7 @@ const config: HardhatUserConfig = {
   solidity: "0.8.28",
   networks: {
     base: {
-      url: `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY}`,
+      url: `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
         chainId: 8453,
       accounts: {
         mnemonic: process.env.MNEMONIC
@@ -15,7 +17,7 @@ const config: HardhatUserConfig = {
       saveDeployments: true
     },
     baseSepolia: {
-      url: `https://base-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY}`,
+      url: `https://base-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
       chainId: 84532,
       accounts: {
         mnemonic: process.env.MNEMONIC
