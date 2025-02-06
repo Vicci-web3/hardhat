@@ -10,7 +10,7 @@ import "hardhat/console.sol";
 struct RewardClaim {
     address user;
     uint256 amount;
-    uint256 timestamp;
+    uint256 deadline;
     uint256 nonce;
 }
 
@@ -24,15 +24,16 @@ contract VicciRewardERC20 is EIP712 {
 
     mapping(address => uint256) public nonces;
 
-    bytes32 public immutable REWARD_CLAIM_TYPEHASH = keccak256("RewardClaim(address user,uint256 amount,uint256 timestamp,uint256 nonce)");
+    bytes32 public immutable REWARD_CLAIM_TYPEHASH = keccak256("RewardClaim(address user,uint256 amount,uint256 deadline,uint256 nonce)");
 
-    event RewardClaimed(address indexed user, uint256 amount, uint256 timestamp, uint256 nonce);
+    event RewardClaimed(address indexed user, uint256 amount, uint256 deadline, uint256 nonce);
     constructor(
         address _rewardToken,
         string memory _campaignId,
         address _agent
         ) EIP712("VicciReward", "4") {
         rewardToken = MockERC20(_rewardToken);
+
         campaignId = _campaignId;
         agent = _agent; // hopefully msg.sender from coinbase agentkit
     }
@@ -46,7 +47,7 @@ contract VicciRewardERC20 is EIP712 {
                 REWARD_CLAIM_TYPEHASH,
                 claim.user,
                 claim.amount,
-                claim.timestamp,
+                claim.deadline,
                 claim.nonce
             )
         );
@@ -65,8 +66,8 @@ contract VicciRewardERC20 is EIP712 {
         // replay protection incremented nonces
         if (nonces[claim.user] == claim.nonce) {
             nonces[claim.user]++;
-            rewardToken.transferFrom(agent, claim.user, claim.amount);
-            emit RewardClaimed(claim.user, claim.amount, claim.timestamp, claim.nonce);
+            rewardToken.transfer(claim.user, claim.amount);
+            emit RewardClaimed(claim.user, claim.amount, claim.deadline, claim.nonce);
         } else {
             revert("invalid nonce");
         }

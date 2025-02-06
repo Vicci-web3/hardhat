@@ -20,6 +20,8 @@ describe("VicciERC20RewardFactory", () => {
     let mockERC20Domain: any;
     let publicClient: PublicClient;
 
+    let rewardContractAddress: `0x${string}`;
+
     before(async () => {
         ;([deployer, agent, venue, visitor] = await viem.getWalletClients())
         publicClient = await viem.getPublicClient()
@@ -44,6 +46,16 @@ describe("VicciERC20RewardFactory", () => {
     })
 
     it("should deploy a reward contract", async () => {
+        const mockERC20 = await viem.getContractAt(
+            "MockERC20",
+            mockERC20Address,
+            {
+                client: {
+                    wallet: venue,
+                    public: publicClient
+                }
+            }
+        )
         const deadline = Math.floor(Date.now() / 1000) + 60
         const venueSignature = await venue.signTypedData({
             domain: {
@@ -66,7 +78,7 @@ describe("VicciERC20RewardFactory", () => {
                 owner: venue.account.address,
                 spender: vicciRewardERC20FactoryAddress,
                 value: 1000,
-                nonce: 0,
+                nonce: await mockERC20.read.nonces([venue.account.address]),
                 deadline: deadline,
             }
         })
@@ -100,9 +112,59 @@ describe("VicciERC20RewardFactory", () => {
             r,
             s
         ])
-        await publicClient.waitForTransactionReceipt({ hash  })
+        const tx = await publicClient.waitForTransactionReceipt({ hash  })
+        const rewardContractDeployedEvents = await rewardContract.getEvents.RewardContractDeployed()
+        rewardContractAddress = rewardContractDeployedEvents[0].args.rewardContract
     })
 
-
-
+    it("the agent can create a permit for a visitor to claim a reward", async () => {
+        /* Agent writes the permit */
+        const deadline = Math.floor(Date.now() / 1000) + 60
+        const rewardContractVisitor = await viem.getContractAt(
+            "VicciRewardERC20",
+            rewardContractAddress,
+            {
+                client: {
+                    wallet: visitor,
+                    public: publicClient
+                }
+            }
+        )
+        const nonce = await rewardContractVisitor.read.nonces([visitor.account.address])
+        const agentsPermitSignature = await agent.signTypedData({
+            domain: {
+                name: "VicciReward",
+                version: "4",
+                chainId: await publicClient.getChainId(),
+                verifyingContract: rewardContractAddress
+            },
+            types: {
+                RewardClaim: [
+                    { name: "user", type: "address" },
+                    { name: "amount", type: "uint256" },
+                    { name: "deadline", type: "uint256" },
+                    { name: "nonce", type: "uint256" }
+                ]
+            },
+            primaryType: "RewardClaim",
+            message: {
+                user: visitor.account.address,
+                amount: 1000,
+                deadline,
+                nonce
+            }
+        })
+        
+        const hash = await rewardContractVisitor.write.claimReward([
+            {
+                user: visitor.account.address,
+                amount: 1000,
+                deadline,
+                nonce
+            },
+            agentsPermitSignature
+        ])
+        const tx = await publicClient.waitForTransactionReceipt({ hash  })
+    })
+        
 })
