@@ -1,12 +1,12 @@
 pragma solidity ^0.8.28;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./MockERC20.sol";
 
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-
+import "hardhat/console.sol";
 struct RewardClaim {
     address user;
     uint256 amount;
@@ -15,8 +15,8 @@ struct RewardClaim {
 }
 
 
-contract VicciReward is EIP712 {
-    IERC20 public rewardToken;
+contract VicciRewardERC20 is EIP712 {
+    MockERC20 public rewardToken;
     uint256 public rewardPool;
 
     string public campaignId;
@@ -32,7 +32,7 @@ contract VicciReward is EIP712 {
         string memory _campaignId,
         address _agent
         ) EIP712("VicciReward", "4") {
-        rewardToken = IERC20(_rewardToken);
+        rewardToken = MockERC20(_rewardToken);
         campaignId = _campaignId;
         agent = _agent; // hopefully msg.sender from coinbase agentkit
     }
@@ -71,5 +71,56 @@ contract VicciReward is EIP712 {
             revert("invalid nonce");
         }
     }
-    
+}
+
+contract VicciRewardERC20Factory {
+
+    event RewardContractDeployed(
+        address indexed rewardContract,
+        address indexed rewardToken,
+        string campaignId,
+        address agent
+    );
+
+    constructor() {}
+
+    function deployRewardContract(
+        address rewardToken,
+        string memory campaignId,
+        address agent,
+        address venue,
+        uint256 initialRewardPool,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external returns (address) {
+        console.log("deploying reward contract");
+        VicciRewardERC20 rewardContract = new VicciRewardERC20(
+            rewardToken,
+            campaignId,
+            agent
+        );
+        console.log("reward contract deployed");
+        MockERC20(rewardToken).permit(
+            venue,
+            address(this),
+            initialRewardPool,
+            deadline,
+            v,
+            r,
+            s
+        );
+        console.log("permit called");
+        MockERC20(rewardToken).transferFrom(venue, address(rewardContract), initialRewardPool);
+        
+        emit RewardContractDeployed(
+            address(rewardContract),
+            rewardToken,
+            campaignId,
+            agent
+        );
+        
+        return address(rewardContract);
+    }
 }
