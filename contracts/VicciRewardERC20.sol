@@ -22,11 +22,12 @@ contract VicciRewardERC20 is EIP712 {
     string public campaignId;
     address public agent;
 
-    mapping(address => uint256) public nonces;
+    mapping(address => mapping(uint256 => bool)) public usedNonces;
 
     bytes32 public immutable REWARD_CLAIM_TYPEHASH = keccak256("RewardClaim(address user,uint256 amount,uint256 deadline,uint256 nonce)");
 
     event RewardClaimed(address indexed user, uint256 amount, uint256 deadline, uint256 nonce);
+
     constructor(
         address _rewardToken,
         string memory _campaignId,
@@ -62,15 +63,12 @@ contract VicciRewardERC20 is EIP712 {
             signature
         );
         require(isValid, "only the agent may authorize rewards claims");
-
         // replay protection incremented nonces
-        if (nonces[claim.user] == claim.nonce) {
-            nonces[claim.user]++;
-            rewardToken.transfer(claim.user, claim.amount);
-            emit RewardClaimed(claim.user, claim.amount, claim.deadline, claim.nonce);
-        } else {
-            revert("invalid nonce");
-        }
+        require(!usedNonces[claim.user][claim.nonce], "nonce already used");
+        usedNonces[claim.user][claim.nonce] = true;
+
+        rewardToken.transfer(claim.user, claim.amount);
+        emit RewardClaimed(claim.user, claim.amount, claim.deadline, claim.nonce);
     }
 }
 
@@ -79,6 +77,7 @@ contract VicciRewardERC20Factory {
     event RewardContractDeployed(
         address indexed rewardContract,
         address indexed rewardToken,
+        address indexed venue,
         string campaignId,
         address agent
     );
@@ -118,6 +117,7 @@ contract VicciRewardERC20Factory {
         emit RewardContractDeployed(
             address(rewardContract),
             rewardToken,
+            venue,
             campaignId,
             agent
         );

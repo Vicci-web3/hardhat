@@ -57,6 +57,7 @@ describe("VicciERC20RewardFactory", () => {
             }
         )
         const deadline = Math.floor(Date.now() / 1000) + 60
+
         const venueSignature = await venue.signTypedData({
             domain: {
                 name: "MockERC20",
@@ -130,7 +131,25 @@ describe("VicciERC20RewardFactory", () => {
                 }
             }
         )
-        const nonce = await rewardContractVisitor.read.nonces([visitor.account.address])
+        const mockERC20 = await viem.getContractAt(
+            "MockERC20",
+            mockERC20Address,
+            {
+                client: {
+                    wallet: venue,
+                    public: publicClient
+                }
+            }
+        )
+        const maxBigInt = 2n ** 256n - 1n;
+        let randomBigInt = BigInt(Math.floor(Math.random() * Number(maxBigInt)));
+        let usedNonce = await rewardContractVisitor.read.usedNonces([venue.account.address, randomBigInt])
+        console.log('usedNonce', usedNonce)
+        while (usedNonce) {
+            randomBigInt = BigInt(Math.floor(Math.random() * Number(maxBigInt)));
+            usedNonce = await rewardContractVisitor.read.usedNonces([venue.account.address, randomBigInt])
+        }
+
         const agentsPermitSignature = await agent.signTypedData({
             domain: {
                 name: "VicciReward",
@@ -151,7 +170,7 @@ describe("VicciERC20RewardFactory", () => {
                 user: visitor.account.address,
                 amount: 1000,
                 deadline,
-                nonce
+                nonce: randomBigInt
             }
         })
         
@@ -160,11 +179,14 @@ describe("VicciERC20RewardFactory", () => {
                 user: visitor.account.address,
                 amount: 1000,
                 deadline,
-                nonce
+                nonce: randomBigInt
             },
             agentsPermitSignature
         ])
         const tx = await publicClient.waitForTransactionReceipt({ hash  })
+        
+        const balance = await mockERC20.read.balanceOf([visitor.account.address])
+        expect(balance).to.equal(1000)
     })
         
 })
